@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-main();
+setImmediate(main);
 
 const DEBUG = process.env.DEBUG;
 const REG_FIELD_ENCODING = new Map([
@@ -71,7 +71,6 @@ class BytecodeReader {
   public next(): number {
     return this.bytecode[this.curr++];
   }
-
 
   public read_number(bytes: number = 1): number {
     let n = this.next();
