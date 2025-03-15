@@ -40,6 +40,9 @@ type OpHandler = (op: number, byte_reader: BytecodeReader) => string;
 const OPS = new Map<number, OpHandler>();
 register_op(OPS, "100010xx", mov_reg_to_reg);
 register_op(OPS, "1011xxxx", mov_immediate_to_reg);
+register_op(OPS, "1100011x", mov_immediate_to_reg_or_mem);
+register_op(OPS, "1010000x", mov_mem_to_accum);
+register_op(OPS, "1010001x", mov_accum_to_mem);
 
 function register_op(ops_map: Map<number, OpHandler>, op: string, handler: OpHandler): void {
   const variable_parts_count = op.split("x").length - 1;
@@ -107,7 +110,7 @@ function main() {
   
   let asm = "bits 16\n";
   let op: number;
-  byte_reader.set_mark();
+  if (DEBUG) byte_reader.set_mark();
   while (!!(op = byte_reader.next())) {
     const handler = OPS.get(op);
     if (!handler) {
@@ -116,11 +119,53 @@ function main() {
     };
     
     asm += "\n";
-    asm += handler(op, byte_reader);
-    byte_reader.set_mark();
+    let op_asm = handler(op, byte_reader);
+
+    if (DEBUG) {
+      op_asm = `(${byte_reader.get_bytes_since_mark_str()}) ${op_asm}`;
+      byte_reader.set_mark();
+    }
+
+    asm += op_asm;
   }
   
   console.log(asm);
+}
+
+function read_reg_or_m(REG_OR_M: number, W: number, MOD: number, byte_reader: BytecodeReader): string {
+  let reg_or_m: string;
+  switch (MOD) {
+    case 0b11:
+      reg_or_m = reg_to_label(REG_OR_M, W)
+      break;
+    case 0b00:
+      if (REG_OR_M == 0b110) {
+        // direct address
+        reg_or_m = `[${byte_reader.read_number(W ? 2 : 1)}]`;
+      } else {
+        reg_or_m = `[${reg_to_addr_calc(REG_OR_M).join(" + ").toLowerCase()}]`;
+      }
+      break;
+    case 0b01:
+    case 0b10:
+      const disp = byte_reader.read_number(MOD);
+      const address_formula: Array<string | number> = [...reg_to_addr_calc(REG_OR_M)];
+      if (disp > 0) {
+        address_formula.push(disp);
+      } 
+      reg_or_m = `[${address_formula.join(" + ").toLowerCase()}`;
+      if (disp < 0) {
+        reg_or_m += ` - ${Math.abs(disp)}]`;
+      } else {
+        reg_or_m += "]";
+      }
+      break;
+    default:
+      reg_or_m = reg_to_label(REG_OR_M, W)
+      break;
+  } 
+
+  return reg_or_m;
 }
 
 function mov_reg_to_reg(op: number, byte_reader: BytecodeReader): string {
@@ -137,25 +182,7 @@ function mov_reg_to_reg(op: number, byte_reader: BytecodeReader): string {
   let asm = `mov `;
 
   const reg = reg_to_label(REG, W);
-  let reg_or_m: string;
-  switch (MOD) {
-    case 0b11:
-      reg_or_m = reg_to_label(REG_OR_M, W)
-      break;
-    case 0b00:
-      reg_or_m = `[${reg_to_addr_calc(REG_OR_M).join(" + ").toLowerCase()}]`;
-      break;
-    case 0b01:
-    case 0b10:
-      const disp = byte_reader.read_number(MOD);
-      const address_formula: Array<string | number> = [...reg_to_addr_calc(REG_OR_M)];
-      if (disp) address_formula.push(disp)
-      reg_or_m = `[${address_formula.join(" + ").toLowerCase()}]`;
-      break;
-    default:
-      reg_or_m = reg_to_label(REG_OR_M, W)
-      break;
-  }
+  const reg_or_m: string = read_reg_or_m(REG_OR_M, W, MOD, byte_reader);
 
   let src: string, dest: string;
   if (D) {
@@ -167,10 +194,6 @@ function mov_reg_to_reg(op: number, byte_reader: BytecodeReader): string {
   }
 
   asm += `${dest}, ${src}`;
-
-  if (DEBUG) {
-    asm = `(${byte_reader.get_bytes_since_mark_str()}) ${asm}`;
-  }
 
   return asm;
 }
@@ -184,10 +207,44 @@ function mov_immediate_to_reg(op: number, byte_reader: BytecodeReader): string {
   let asm = `mov `;
   asm += reg_to_label(REG, W) + ", " + DATA
 
-  if (DEBUG) {
-    asm = `(${byte_reader.get_bytes_since_mark_str()}) ${asm}`;
-  }
+  return asm;
+}
 
+function mov_immediate_to_reg_or_mem(op: number, byte_reader: BytecodeReader): string {
+  const W_MASK = 0b00000001;
+
+  const W = match_mask(W_MASK, op);
+  const operands =  byte_reader.next();
+  const MOD = operands >> 6;
+  const REG_OR_M = operands & 0b111;
+
+  let asm = `mov `;
+
+  const reg_or_m: string = read_reg_or_m(REG_OR_M, W, MOD, byte_reader);
+  const data = byte_reader.read_number(W ? 2 : 1);
+
+  asm += `${reg_or_m}, ${W ? "word" : "byte"} ${data}`;
+
+  return asm;
+}
+
+function mov_mem_to_accum(op: number, byte_reader: BytecodeReader): string {
+  const W_MASK = 0b00000001;
+
+  const W = match_mask(W_MASK, op);
+  const addr =  byte_reader.read_number(2);
+
+  const asm = `mov ${reg_to_label(0b00, W)}, [${addr}]`;
+  return asm;
+}
+
+function mov_accum_to_mem(op: number, byte_reader: BytecodeReader): string {
+  const W_MASK = 0b00000001;
+
+  const W = match_mask(W_MASK, op);
+  const addr =  byte_reader.read_number(2);
+
+  const asm = `mov [${addr}], ${reg_to_label(0b00, W)}`;
   return asm;
 }
 
