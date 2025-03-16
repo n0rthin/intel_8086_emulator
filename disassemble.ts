@@ -43,6 +43,12 @@ register_op(OPS, "1011xxxx", mov_immediate_to_reg);
 register_op(OPS, "1100011x", mov_immediate_to_reg_or_mem);
 register_op(OPS, "1010000x", mov_mem_to_accum);
 register_op(OPS, "1010001x", mov_accum_to_mem);
+register_op(OPS, "000000xx", add_reg_to_reg);
+register_op(OPS, "100000xx", arithm_immediate_to_reg_or_mem);
+register_op(OPS, "0000010x", add_immediate_to_reg);
+register_op(OPS, "001010xx", sub_reg_to_reg);
+register_op(OPS, "100000xx", arithm_immediate_to_reg_or_mem);
+register_op(OPS, "0010110x", sub_immediate_to_reg);
 
 function register_op(ops_map: Map<number, OpHandler>, op: string, handler: OpHandler): void {
   const variable_parts_count = op.split("x").length - 1;
@@ -111,10 +117,10 @@ function main() {
   let asm = "bits 16\n";
   let op: number;
   if (DEBUG) byte_reader.set_mark();
-  while (!!(op = byte_reader.next())) {
+  while ((op = byte_reader.next()) !== null) {
     const handler = OPS.get(op);
     if (!handler) {
-      console.log(asm)
+      console.log(asm);
       throw new Error(`Unkown operator ${op.toString(2)}`);
     };
     
@@ -169,17 +175,29 @@ function read_reg_or_m(REG_OR_M: number, W: number, MOD: number, byte_reader: By
 }
 
 function mov_reg_to_reg(op: number, byte_reader: BytecodeReader): string {
+  return reg_to_reg("mov", op, byte_reader);
+}
+
+function add_reg_to_reg(op: number, byte_reader: BytecodeReader): string {
+  return reg_to_reg("add", op, byte_reader);
+}
+
+function sub_reg_to_reg(op: number, byte_reader: BytecodeReader): string {
+  return reg_to_reg("sub", op, byte_reader);
+}
+
+function reg_to_reg(op_label: string, op: number, byte_reader: BytecodeReader): string {
   const D_MASK = 0b00000010;
   const W_MASK = 0b00000001;
 
   const D = match_mask(D_MASK, op);
   const W = match_mask(W_MASK, op);
-  const operands =  byte_reader.next();
-  const MOD = operands >> 6;
-  const REG = (operands >> 3) & 0b111;
-  const REG_OR_M = operands & 0b111;
+  const opeands =  byte_reader.next();
+  const MOD = opeands >> 6;
+  const REG = (opeands >> 3) & 0b111;
+  const REG_OR_M = opeands & 0b111;
 
-  let asm = `mov `;
+  let asm = `${op_label} `;
 
   const reg = reg_to_label(REG, W);
   const reg_or_m: string = read_reg_or_m(REG_OR_M, W, MOD, byte_reader);
@@ -199,28 +217,59 @@ function mov_reg_to_reg(op: number, byte_reader: BytecodeReader): string {
 }
 
 function mov_immediate_to_reg(op: number, byte_reader: BytecodeReader): string {
-  const W_MASK = 0b00001000;
+  return immediate_to_reg("mov", op, byte_reader);
+}
+
+function add_immediate_to_reg(op: number, byte_reader: BytecodeReader): string {
+  return immediate_to_reg("add", op, byte_reader);
+}
+
+function sub_immediate_to_reg(op: number, byte_reader: BytecodeReader): string {
+  return immediate_to_reg("sub", op, byte_reader);
+}
+
+function immediate_to_reg(op_label: string, op: number, byte_reader: BytecodeReader): string {
+  const W_MASK = op_label === "mov" ? 0b00001000 : 0b00000001;
   const W = match_mask(W_MASK, op);
-  const REG = op & 0b111;
+  const REG = op_label === "mov" ? op & 0b111 : 0b000;
   const DATA = byte_reader.read_number(W ? 2 : 1);
     
-  let asm = `mov `;
+  let asm = `${op_label} `;
   asm += reg_to_label(REG, W) + ", " + DATA
 
   return asm;
 }
 
 function mov_immediate_to_reg_or_mem(op: number, byte_reader: BytecodeReader): string {
+  return immediate_to_reg_or_mem("mov", op, byte_reader);
+}
+
+function arithm_immediate_to_reg_or_mem(op: number, byte_reader: BytecodeReader): string {
+  const operator = op >> 3 & 0b111;
+  switch (operator) {
+    case 0b000:
+      return immediate_to_reg_or_mem("add", op, byte_reader);
+    case 0b101:
+      return immediate_to_reg_or_mem("sub", op, byte_reader);
+    default:
+      throw new Error(`Uknown operator ${op}`)
+  }
+}
+
+function immediate_to_reg_or_mem(op_label: string, op: number, byte_reader: BytecodeReader): string {
   const W_MASK = 0b00000001;
+  const S_MASK = 0b00000010;
 
-  const W = match_mask(W_MASK, op);
-  const operands =  byte_reader.next();
-  const MOD = operands >> 6;
-  const REG_OR_M = operands & 0b111;
+  let W = match_mask(W_MASK, op);
+  const S = match_mask(S_MASK, op);
+  const opeands =  byte_reader.next();
+  const MOD = opeands >> 6;
+  const REG_OR_M = opeands & 0b111;
 
-  let asm = `mov `;
+  let asm = `${op_label} `;
 
   const reg_or_m: string = read_reg_or_m(REG_OR_M, W, MOD, byte_reader);
+  W = Number(W && !S) as 0 | 1;
   const data = byte_reader.read_number(W ? 2 : 1);
 
   asm += `${reg_or_m}, ${W ? "word" : "byte"} ${data}`;
@@ -234,7 +283,7 @@ function mov_mem_to_accum(op: number, byte_reader: BytecodeReader): string {
   const W = match_mask(W_MASK, op);
   const addr =  byte_reader.read_number(2);
 
-  const asm = `mov ${reg_to_label(0b00, W)}, [${addr}]`;
+  const asm = `mov ${reg_to_label(0b000, W)}, [${addr}]`;
   return asm;
 }
 
