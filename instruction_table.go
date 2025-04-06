@@ -18,7 +18,7 @@ type InstructionEncoding struct {
 	Bits [16]InstructionBits
 }
 
-type OperationType uint8
+type OperationType byte
 
 const (
 	OpNone OperationType = iota
@@ -29,11 +29,11 @@ const (
 
 type InstructionBits struct {
 	Usage    InstructionBitsUsage
-	BitCount uint8
-	Value    uint8
+	BitCount byte
+	Value    byte
 }
 
-type InstructionBitsUsage uint8
+type InstructionBitsUsage byte
 
 const (
 	BitsEnd InstructionBitsUsage = iota
@@ -70,29 +70,29 @@ func INST(op OperationType, bits ...InstructionBits) InstructionEncoding {
 	return InstructionEncoding{Op: op, Bits: bits16}
 }
 
-func B(value uint8, bitCount uint8) InstructionBits {
+func B(value byte, bitCount byte) InstructionBits {
 	return InstructionBits{Usage: BitsLiteral, BitCount: bitCount, Value: value}
 }
 
 // Imp = implicit
 
-func ImpW(value uint8) InstructionBits {
+func ImpW(value byte) InstructionBits {
 	return InstructionBits{Usage: BitsW, BitCount: 0, Value: value}
 }
 
-func ImpD(value uint8) InstructionBits {
+func ImpD(value byte) InstructionBits {
 	return InstructionBits{Usage: BitsD, BitCount: 0, Value: value}
 }
 
-func ImpREG(value uint8) InstructionBits {
+func ImpREG(value byte) InstructionBits {
 	return InstructionBits{Usage: BitsREG, BitCount: 0, Value: value}
 }
 
-func ImpMOD(value uint8) InstructionBits {
+func ImpMOD(value byte) InstructionBits {
 	return InstructionBits{Usage: BitsMOD, BitCount: 0, Value: value}
 }
 
-func ImpRM(value uint8) InstructionBits {
+func ImpRM(value byte) InstructionBits {
 	return InstructionBits{Usage: BitsRM, BitCount: 0, Value: value}
 }
 

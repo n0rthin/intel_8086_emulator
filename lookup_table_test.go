@@ -15,21 +15,21 @@ func TestBitsLimit(t *testing.T) {
 type TestCase struct {
 	name            string
 	instructionBits []InstructionBits
-	variations      []uint8
+	variations      []byte
 }
 
 var testCases = []TestCase{
-	{"one 8 bit literal", BITS(B(0b11111111, 8)), []uint8{0b11111111}},
-	{"two 4 bit literals", BITS(B(0b1111, 4), B(0b1001, 4)), []uint8{0b11111001}},
+	{"one 8 bit literal", BITS(B(0b11111111, 8)), []byte{0b11111111}},
+	{"two 4 bit literals", BITS(B(0b1111, 4), B(0b1001, 4)), []byte{0b11111001}},
 	{
 		"one 6 bit literal and two 1 bit non-literals",
 		BITS(B(0b111111, 6), D, W),
-		[]uint8{0b11111100, 0b11111101, 0b11111110, 0b11111111},
+		[]byte{0b11111100, 0b11111101, 0b11111110, 0b11111111},
 	},
 	{
 		"one 6 bit literal, one 1 bit non-literal, one 1 bit literal",
 		BITS(B(0b111111, 6), D, B(0b1, 1)),
-		[]uint8{0b11111101, 0b11111111},
+		[]byte{0b11111101, 0b11111111},
 	},
 }
 
