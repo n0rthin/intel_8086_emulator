@@ -8,10 +8,10 @@ import (
 // Maps all possible values of the first byte of instruction to the instruction encoding
 type InstLookupTable map[uint8]InstructionEncoding
 
-func GetInstLookupTable() InstLookupTable {
+func GetInstLookupTable(instTable InstructionTable) InstLookupTable {
 	lookupTable := InstLookupTable{}
 
-	for _, enc := range InstructionTable8086.Encodings {
+	for _, enc := range instTable.Encodings {
 		firstByteIdx := 0
 		bits := 0
 		for idx, instBit := range enc.Bits {
