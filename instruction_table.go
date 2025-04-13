@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sim86/utils"
+)
 
 /*
   This instruction table is a direct translation of table 4-12 in the Intel 8086 manual.
@@ -10,7 +13,7 @@ import "fmt"
 
 type InstructionTable struct {
 	Encodings     []InstructionEncoding
-	EncodingCount uint32
+	EncodingCount uint
 }
 
 type InstructionEncoding struct {
@@ -60,9 +63,10 @@ const (
 // Table
 
 func INST(op OperationType, bits ...InstructionBits) InstructionEncoding {
-	if len(bits) > 16 {
-		panic(fmt.Sprintf("Expected 16 bits at most, received %d instead. Op %d", len(bits), op))
-	}
+	utils.Assert(
+		len(bits) > 16,
+		fmt.Sprintf("Expected 16 bits at most, received %d instead. Op %d", len(bits), op),
+	)
 
 	var bits16 [16]InstructionBits
 	copy(bits16[:], bits)
@@ -104,7 +108,7 @@ var MOD = InstructionBits{Usage: BitsMOD, BitCount: 2}
 var REG = InstructionBits{Usage: BitsREG, BitCount: 3}
 var SR = InstructionBits{Usage: BitsSR, BitCount: 2}
 var ADDR = InstructionBits{Usage: BitsDisp, BitCount: 0, Value: 0}
-var DISP_ALWAYS_W = InstructionBits{Usage: BitsDispAlwaysW, BitCount: 0, Value: 0}
+var DISP_ALWAYS_W = InstructionBits{Usage: BitsDispAlwaysW, BitCount: 0, Value: 1}
 var DATA = InstructionBits{Usage: BitsData, BitCount: 0}
 var DATA_IF_W = InstructionBits{Usage: BitsWMakesDataW, BitCount: 0, Value: 1}
 
@@ -125,5 +129,5 @@ var encodings []InstructionEncoding = []InstructionEncoding{
 
 var InstructionTable8086 = InstructionTable{
 	Encodings:     encodings,
-	EncodingCount: uint32(len(encodings)),
+	EncodingCount: uint(len(encodings)),
 }

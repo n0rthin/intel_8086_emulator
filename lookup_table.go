@@ -2,28 +2,30 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"math"
 )
 
 // Maps all possible values of the first byte of instruction to the instruction encoding
 type InstLookupTable map[byte]InstructionEncoding
 
-func GetInstLookupTable(instTable InstructionTable) InstLookupTable {
+func (lt *InstLookupTable) String() string {
+	var str string
+	for op, enc := range *lt {
+		str += fmt.Sprintf("%08b: %v\n", op, enc)
+	}
+
+	return str
+}
+
+func GetInstLookupTable(instTable *InstructionTable) InstLookupTable {
 	lookupTable := InstLookupTable{}
 
 	for _, enc := range instTable.Encodings {
-		firstByteIdx := 0
-		bits := 0
-		for idx, instBit := range enc.Bits {
-			if bits += int(instBit.BitCount); bits > 8 {
-				break
-			}
-			firstByteIdx = idx
-		}
-
-		instructionVariants, error := getVariations(enc.Bits[:firstByteIdx])
-		if error != nil {
-			panic(error)
+		firstByteIdx := getFirstNBitsIdx(enc.Bits[:], 8)
+		instructionVariants, err := getVariations(enc.Bits[:firstByteIdx])
+		if err != nil {
+			panic(err)
 		}
 
 		for _, variant := range instructionVariants {
@@ -32,6 +34,18 @@ func GetInstLookupTable(instTable InstructionTable) InstLookupTable {
 	}
 
 	return lookupTable
+}
+
+func getFirstNBitsIdx(bits []InstructionBits, n uint) uint {
+	var firstNBitsIdx, bitsCount uint
+	for idx, instBit := range bits {
+		firstNBitsIdx = uint(idx)
+		if bitsCount += uint(instBit.BitCount); bitsCount > n {
+			break
+		}
+	}
+
+	return uint(firstNBitsIdx)
 }
 
 func getVariations(instructionBits []InstructionBits) ([]byte, error) {

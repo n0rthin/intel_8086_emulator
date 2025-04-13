@@ -12,13 +12,18 @@ func TestBitsLimit(t *testing.T) {
 	}
 }
 
-type TestCase struct {
+type TestCaseLookupTable struct {
 	name            string
 	instructionBits []InstructionBits
 	variations      []byte
 }
 
-var testCases = []TestCase{
+var testCases = []TestCaseLookupTable{
+	{
+		"register/memory to/from register DW=10",
+		BITS(B(0b00100010, 6), D, W),
+		[]byte{0b10001000, 0b10001001, 0b10001010, 0b10001011},
+	},
 	{"one 8 bit literal", BITS(B(0b11111111, 8)), []byte{0b11111111}},
 	{"two 4 bit literals", BITS(B(0b1111, 4), B(0b1001, 4)), []byte{0b11111001}},
 	{
@@ -37,7 +42,7 @@ func BITS(bits ...InstructionBits) []InstructionBits {
 	return bits
 }
 
-func TestTable(t *testing.T) {
+func TestLookupTable(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			variations, err := getVariations(tc.instructionBits)
@@ -53,6 +58,33 @@ func TestTable(t *testing.T) {
 				if variation != tc.variations[idx] {
 					t.Errorf(`#%d: 0b%08b (result) != 0b%08b (expected)`, idx, variation, tc.variations[idx])
 				}
+			}
+		})
+	}
+}
+
+type TestCasesGetFirstNBitsIdx struct {
+	name   string
+	bits   []InstructionBits
+	n      uint
+	result uint
+}
+
+var testCasesGetFirstNBitsIdx = []TestCasesGetFirstNBitsIdx{
+	{
+		name:   "",
+		bits:   BITS(B(0b00100010, 6), D, W, MOD, REG, RM),
+		n:      8,
+		result: 3,
+	},
+}
+
+func TestGetFirstNBitsIdx(t *testing.T) {
+	for _, tc := range testCasesGetFirstNBitsIdx {
+		t.Run(tc.name, func(t *testing.T) {
+			idx := getFirstNBitsIdx(tc.bits, tc.n)
+			if idx != tc.result {
+				t.Errorf(`result != expected, %d != %d`, idx, tc.result)
 			}
 		})
 	}
